@@ -7,7 +7,24 @@ void taskManager::addTask(const std::string& taskName) {
 }
 
 void taskManager::getAllTasks() const {
-    for (size_t i = 0; i < _userPtr->userTasks.size(); i++) {
-        std::cout << i + 1 << ". " <<_userPtr->userTasks[i].getTaskName() << std::endl;
+    const auto& tasks = _userPtr->getTasksVec();  
+    for (size_t i = 0; i < tasks.size(); i++) {
+        std::cout << i + 1 << ". " << tasks[i].getTaskName() << (tasks[i].isCompleted()? "  |  [Completed]":"   |  [Uncompleted]") << std::endl;
     }
+}
+bool taskManager::deleteTask(int id){
+    auto& tasksVector = _userPtr->getTasksVec();
+    for(unsigned i{0};i<tasksVector.size();i++){
+        if(tasksVector[i].getTaskId() == id) {tasksVector.erase(tasksVector.begin() + i); return true;}
+    }
+    return false;
+
+}
+bool taskManager::completeTask(int ID){
+    auto& tasksVector = _userPtr->getTasksVec();
+     for(unsigned i{0};i<tasksVector.size();i++){
+        if(tasksVector[i].getTaskId() == ID) {tasksVector[i].setCompleted(); return true;}
+    }
+    return false;
+
 }

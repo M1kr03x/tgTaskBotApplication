@@ -1,3 +1,4 @@
+#pragma once
 #include <string>
 #include <vector>
 class Task{
@@ -10,4 +11,6 @@ public:
 Task(std::string);
 std::string getTaskName() const { return _taskName; }
 bool isCompleted() const { return _isCompleted; }
+int getTaskId() const {return _taskId;}
+void setCompleted();
 };

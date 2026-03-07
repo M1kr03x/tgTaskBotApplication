@@ -13,5 +13,5 @@ add_executable(tgBot
     src/user.cpp
     src/userInterface.cpp
     src/taskManager.cpp
-    
+    src/userManager.cpp
 )
