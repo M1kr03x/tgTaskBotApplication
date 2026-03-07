@@ -83,7 +83,7 @@ void UserInterface::runTaskManager(){
         else if(change.rfind("add ",0) == 0 and change.size()>4) {taskMgr.addTask(change.substr(4));}
        else if(change.rfind("complete ", 0) == 0 && change.length() > 9) {
     try {
-        int taskId = std::stoi(change.substr(9));  // 9, потому что "complete " (8 букв + пробел)
+        int taskId = std::stoi(change.substr(9)); 
         if (taskMgr.completeTask(taskId)) {
             std::cout << "Task completed!\n";
         } else {
