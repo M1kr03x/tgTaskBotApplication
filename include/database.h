@@ -26,9 +26,9 @@ bool completeTask(int);
 bool deleteTask(int);
 //structs
  struct TaskData {
-        int id;
-        std::string title;
-        bool completed;
+        int taskID;
+        std::string taskName;
+        std::string taskStatus;
     };
 //getters
 std::vector<TaskData> getUserTasks(int,bool);
