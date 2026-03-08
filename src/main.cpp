@@ -3,19 +3,26 @@
 #include <locale>
 
 int main() {
-    // Для поддержки русского языка в консоли Windows
-    #ifdef _WIN32
-        setlocale(LC_ALL, "Russian");
-    #endif
-    
-    std::cout << "╔════════════════════════════╗\n";
-    std::cout << "║   TASK MANAGER BOT v1.0    ║\n";
-    std::cout << "╚════════════════════════════╝\n\n";
-    
-    UserInterface ui;
-    ui.start();
-    
-    std::cout << "\nGoodbye! Have a nice day!\n";
-    
+   try {
+        Database db("tgBotDb",     
+                   "postgres",          
+                   "324520525",             
+                   "localhost",        
+                   "5432");            
+
+        if (!db.isConnected()) {
+            std::cerr << "Failed to connect to database.\n";
+            return 1;
+        }
+      
+        UserInterface ui(db);
+        ui.start();
+
+    } catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        return 1;
+    }
+
+    std::cout << "\nGoodbye\n";
     return 0;
 }

@@ -17,7 +17,7 @@ Database (const std::string&,const std::string&,const std::string&,const std::st
 bool isConnected() const;
 //userQuery
 bool addUser(const std::string&,const std::string&);
-std::optional<int> findUserID(const std::string &);
+std::optional<int> findUserID(const std::string &, std::string&);
 bool userExists(const std::string&);
 bool deleteUser(const std::string&);
 //task query

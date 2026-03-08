@@ -5,7 +5,7 @@ pqxx::work Database::createTransaction(){
     return pqxx::work(*conn);
 }
 Database::Database(const std::string&dbname, const std::string&user,const std::string& password, const std::string& host, const std::string&port){
-    std::string conn_prm = "host=" + host +" port="+port +" dbname="+dbname+" user="+user+" paswword="+ password;
+    std::string conn_prm = "host=" + host +" port="+port +" dbname="+dbname+" user="+user+" password="+ password;
     try{
         conn = std::make_unique<pqxx::connection>(conn_prm);
         if(conn->is_open()){
@@ -24,14 +24,18 @@ Database::~Database(){
         }
     }
 
-bool Database::isConnected() const{return conn->is_open();}
+bool Database::isConnected() const{return conn && conn->is_open();}
                                                                                                     //USER QUERY MANIPULATION
 bool Database::addUser(const std::string&login, const std::string&password) {
     if(!isConnected()) {std::cout << "DB connection is closed.. \n"; return false;}
     try{
     auto transaction = createTransaction();
-    auto result = transaction.exec_params("INSERT INTO User(login,password) VALUES ($1,$2) RETURNING userID",login,password);
+    auto result = transaction.exec_params("INSERT INTO \"User\"(login,password) VALUES ($1,$2) RETURNING userID",login,password);
     transaction.commit();
+    if (result.empty()) {
+    std::cerr << "User not inserted for unknown reason\n";
+    return false;
+}
     std::cout <<"Succesfull user adding. Login: " <<login <<" ID: "<<result[0][0].as<int>()<<std::endl;
     return true;
     }
@@ -48,7 +52,7 @@ bool Database::deleteUser(const std::string&login){
      if(!isConnected()) {std::cout << "DB connection is closed.. \n"; return false;}
      try{
         auto transaction = createTransaction();
-        auto result = transaction.exec_params("DELETE FROM User WHERE login = $1 RETURNING userID",login);
+        auto result = transaction.exec_params("DELETE FROM \"User\" WHERE login = $1 RETURNING userID",login);
           if (result.empty()) {
             std::cout << "User " << login << " not found\n";
             transaction.abort();
@@ -60,22 +64,23 @@ bool Database::deleteUser(const std::string&login){
      } catch(const pqxx::foreign_key_violation&){std::cerr << "User have tasks, cannot delete them\n"; return false;}
      catch(const std::exception&e){ std::cerr<< "Unpredictable error: " << e.what()<< std::endl;return false;}
 }
-std::optional<int> Database::findUserID(const std::string&login){
+std::optional<int> Database::findUserID(const std::string&login,std::string&password){
     if(!isConnected()){std::cout << "DB connection is closed.. \n"; return std::nullopt;}
     try{
         auto transaction = createTransaction();
-        auto result = transaction.exec_params("SELECT userID FROM User where login = $1",login);
+        auto result = transaction.exec_params("SELECT userID FROM \"User\" WHERE login = $1 AND password = $2",login,password);
         if(!result.empty()) return result[0][0].as<int>();
     }
     catch(const std::exception&e){std::cerr<<"Unexpected error.. "<< e.what() <<std::endl; return std::nullopt;}
     return std::nullopt;
 }
 std::vector<Database::TaskData>Database::getUserTasks(int userID,bool onlyUncompleted){
+   
     std::vector<TaskData> tasks;
     try {
         auto transaction = createTransaction();
         
-        std::string query = "SELECT taskID, taskName, taskStatus FROM Tasks WHERE userID = $1";
+        std::string query = "SELECT taskID, taskName, taskStatus FROM \"Task\" WHERE userID = $1";
         if (onlyUncompleted) {
             query += " AND taskStatus = 'uncompleted'";
         }
@@ -94,6 +99,42 @@ std::vector<Database::TaskData>Database::getUserTasks(int userID,bool onlyUncomp
 }
                                                                                         //TASKS QUERY MANIPULATION
 bool Database::addTask(const std::string&taskN,int userID){
+    if(!isConnected()) {std::cout << "DB connection is closed.. \n"; return false;}
+    try{
+    auto transaction = createTransaction();
+    auto result = transaction.exec_params("INSERT INTO \"Task\"(taskName,taskStatus,userID) VALUES($1,$2,$3) RETURNING taskID",taskN,"Uncompleted",userID);
+    transaction.commit();
+    std::cout<< "Task " << taskN <<" with ID " << result[0][0].as<int>() << " has been succesfuly added\n"; 
+    return true;
+    } catch(std::exception&e){std::cerr<<"Unexpected error.. "<< e.what()<<std::endl; return false;}
 
 }
+bool Database::deleteTask(int id){
+    if(!isConnected()) {std::cout << "DB connection is closed.. \n"; return false;}
+    try{
+    auto transaction = createTransaction();
+    auto result = transaction.exec_params("DELETE FROM \"Task\" WHERE taskID = $1 RETURNING taskID",id);
+    transaction.commit();
+    if (result.empty()) {
+            std::cout << "Task with ID " << id << " not found\n";
+            return false;
+        }
+        
+    std::cout<<"Task #" <<result[0][0].as<int>() << " succesfuly deleted\n";
+        return true;
+    }catch(const std::exception&e){ std::cerr<< "Unpredictable error: " << e.what()<< std::endl;return false;}
+}
+bool Database::completeTask(int taskID){
+    if(!isConnected()) {std::cout << "DB connection is closed.. \n"; return false;}
+    try{
+    auto transaction = createTransaction();
+    auto result = transaction.exec_params("UPDATE \"Task\" SET taskStatus = 'Completed' WHERE taskID = $1 RETURNING taskID",taskID);
+    transaction.commit();
+    if(result.empty()){
+        std::cout << "Task with ID " << taskID << " not found\n";
+            return false;
+    } std::cout << "Task #" << taskID << " marked as completed\n";
+    return true;
 
+} catch(const std::exception&e){ std::cerr<< "Unpredictable error: " << e.what()<< std::endl;return false;}
+}
