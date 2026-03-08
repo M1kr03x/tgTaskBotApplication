@@ -6,14 +6,14 @@ class User{
 private:
 std::string _login;
 std::string _password;
-
+pqxx::work createTransaction();
 public:
 std::vector<Task> userTasks;
 User(std::string,std::string);
 User();
-std::string getLogin();
+std::string getLogin() const;
 void setLogin(std::string);
 void setPassword(std::string);
-std::string getPasword();
-std::vector<Task>&getTasksVec() {return userTasks;}
+std::string getPasword() const;
+std::vector<Task>&getTasksVec(){return userTasks;}
 };

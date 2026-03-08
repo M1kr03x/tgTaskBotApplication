@@ -11,5 +11,5 @@ void User::setLogin(std::string log){
 void User::setPassword(std::string password){
     this->_password = password;
 }
-std::string User::getPasword(){return _password;}
-std::string User::getLogin(){return _login;}
+std::string User::getPasword()const{return _password;}
+std::string User::getLogin()const{return _login;}
