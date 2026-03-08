@@ -70,4 +70,30 @@ std::optional<int> Database::findUserID(const std::string&login){
     catch(const std::exception&e){std::cerr<<"Unexpected error.. "<< e.what() <<std::endl; return std::nullopt;}
     return std::nullopt;
 }
+std::vector<Database::TaskData>Database::getUserTasks(int userID,bool onlyUncompleted){
+    std::vector<TaskData> tasks;
+    try {
+        auto transaction = createTransaction();
+        
+        std::string query = "SELECT taskID, taskName, taskStatus FROM Tasks WHERE userID = $1";
+        if (onlyUncompleted) {
+            query += " AND taskStatus = 'uncompleted'";
+        }
+        query += " ORDER BY taskID";
+        auto result = transaction.exec_params(query, userID);
+        for(const auto& row : result){
+            TaskData task;
+            task.taskStatus = row[2].as<std::string>();
+            task.taskID = row[0].as<int>();
+            task.taskName = row[1].as<std::string>();
+            tasks.push_back(task);
+        } 
+        return tasks;
+        }catch (const std::exception&e){std::cerr<<"Unexpected error.. "<< e.what() <<std::endl;}
+        return tasks;
+}
+                                                                                        //TASKS QUERY MANIPULATION
+bool Database::addTask(const std::string&taskN,int userID){
+
+}
 
