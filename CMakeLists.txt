@@ -15,3 +15,11 @@ add_executable(tgBot
     src/taskManager.cpp
     src/userManager.cpp
 )
+set(PostgreSQL_ROOT "G:/PostgreSQL/17")
+find_package(PostgreSQL REQUIRED)
+find_library(PQXX_LIBRARY NAMES libpqxx pqxx)
+
+target_link_libraries(tgBot
+    ${PostgreSQL_LIBRARIES}
+    ${PQXX_LIBRARY}
+)

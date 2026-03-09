@@ -1,33 +1,23 @@
 #include <iostream>
 #include "userManager.h"
 
-userManager::userManager(){
-    User admin;
-    admin.setLogin("admin");
-    admin.setPassword("12345");
-    users.push_back(admin);
-}
+userManager::userManager(Database& database) : db(database){}
+
 bool userManager::registration(std::string log, std::string password){
-    for(int i = 0; i < users.size(); i++) {
-        if(users[i].getLogin() == log) {
-            return false;  // такой логин уже есть - регистрация невозможна
-        }
-    }
-    
-    User newUser;
-    newUser.setLogin(log);
-    newUser.setPassword(password);
-    users.push_back(newUser);
-    return true;
+  return db.addUser(log,password);
     
 }
 
 bool userManager::login(std::string log, std::string pas){
-    for(int i=0; i <users.size();i++){
-        if(users[i].getLogin() == log and users[i].getPasword() == pas){
-            currentUser = &users[i]; 
-            return true;
-        }
+    auto userId = db.findUserID(log, pas);
+     if (userId.has_value()) {
+        User user;
+        user.setLogin(log);
+        user.setPassword(pas);
+        user.setId(userId.value());
+        users.push_back(user);
+        currentUser = &users.back();
+        return true;
     }
     return false;
 }
