@@ -1,12 +1,14 @@
 #pragma once
 #include <string>
 #include <vector>
+#include <cstdint>
 #include "../include/task.h"
 class User{
 private:
 std::string _login;
 std::string _password;
  int _id; 
+int64_t _telegramId;
 public:
 std::vector<Task> userTasks;
 User(std::string,std::string);

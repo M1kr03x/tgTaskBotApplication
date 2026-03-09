@@ -16,8 +16,11 @@ Database (const std::string&,const std::string&,const std::string&,const std::st
 //dbconn
 bool isConnected() const;
 //userQuery
-bool addUser(const std::string&,const std::string&);
-std::optional<int> findUserID(const std::string &, std::string&);
+
+
+std::optional<int> addTgUser(const std::string&,const int64_t);
+std::optional<int> findUserByTelegramId(int64_t);
+
 bool userExists(const std::string&);
 bool deleteUser(const std::string&);
 //task query
