@@ -5,11 +5,11 @@
 int main() {
 
    try {
-        Database db("tgBotDb",     
-                   "postgres",          
-                   "324520525",             
-                   "localhost",        
-                   "5432");            
+        Database db("//",     
+                   "//",          
+                   "//",             
+                   "//",        
+                   "//");            
 
         if (!db.isConnected()) {
             std::cerr << "Failed to connect to database.\n";
