@@ -18,7 +18,7 @@ add_executable(tgBot
 set(PostgreSQL_ROOT "G:/PostgreSQL/17")
 find_package(PostgreSQL REQUIRED)
 find_library(PQXX_LIBRARY NAMES libpqxx pqxx)
-
+find_package(PkgConfig REQUIRED)
 target_link_libraries(tgBot
     ${PostgreSQL_LIBRARIES}
     ${PQXX_LIBRARY}
