@@ -4,9 +4,9 @@
 
 int main() {
    try {
-        Database db("tgBotDb",     
-                   "postgres",          
-                   "324520525",             
+        Database db("//",     
+                   "//",          
+                   "//",             
                    "localhost",        
                    "5432");            
 
