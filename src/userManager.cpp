@@ -9,9 +9,7 @@ bool userManager::registration(std::string log, std::string password){
 }
 
 bool userManager::login(std::string log, std::string pas){
-     std::cout << "DEBUG: login called for " << log << "\n";
     auto userId = db.findUserID(log, pas);
-     std::cout << "DEBUG: userId = " << (userId.has_value() ? std::to_string(userId.value()) : "nullopt") << "\n";
      if (userId.has_value()) {
         User user;
         user.setLogin(log);
