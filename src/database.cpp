@@ -5,6 +5,7 @@ pqxx::work Database::createTransaction(){
     return pqxx::work(*conn);
 }
 Database::Database(const std::string&dbname, const std::string&user,const std::string& password, const std::string& host, const std::string&port){
+      std::lock_guard<std::mutex> lock(dbMutex);
     std::string conn_prm = "host=" + host +" port="+port +" dbname="+dbname+" user="+user+" password="+ password;
     try{
         conn = std::make_unique<pqxx::connection>(conn_prm);
@@ -26,29 +27,10 @@ Database::~Database(){
 
 bool Database::isConnected() const{return conn && conn->is_open();}
                                                                                                     //USER QUERY MANIPULATION
-// bool Database::addUser(const std::string&login, const std::string&password) {
-//     if(!isConnected()) {std::cout << "DB connection is closed.. \n"; return false;}
-//     try{
-//     auto transaction = createTransaction();
-//     auto result = transaction.exec_params("INSERT INTO \"User\"(login,password) VALUES ($1,$2) RETURNING userID",login,password);
-//     transaction.commit();
-//     if (result.empty()) {
-//     std::cerr << "User not inserted for unknown reason\n";
-//     return false;
-// }
-//     std::cout <<"Succesfull user adding. Login: " <<login <<" ID: "<<result[0][0].as<int>()<<std::endl;
-//     return true;
-//     }
-//     catch(const pqxx::unique_violation&){
-//         std::cout<< "User with this login already exists.\n";
-//         return false;
-//     }
-//     catch(const std::exception&e){
-//         std::cout<< "Unpredictable error: " << e.what();
-//         return false;
-//     }
-// }
+
 bool Database::deleteUser(const std::string&login){
+    
+      std::lock_guard<std::mutex> lock(dbMutex);
      if(!isConnected()) {std::cout << "DB connection is closed.. \n"; return false;}
      try{
         auto transaction = createTransaction();
@@ -64,18 +46,8 @@ bool Database::deleteUser(const std::string&login){
      } catch(const pqxx::foreign_key_violation&){std::cerr << "User have tasks, cannot delete them\n"; return false;}
      catch(const std::exception&e){ std::cerr<< "Unpredictable error: " << e.what()<< std::endl;return false;}
 }
-// std::optional<int> Database::findUserID(const std::string&login,std::string&password){
-//     if(!isConnected()){std::cout << "DB connection is closed.. \n"; return std::nullopt;}
-//     try{
-//         auto transaction = createTransaction();
-//         auto result = transaction.exec_params("SELECT userID FROM \"User\" WHERE login = $1 AND password = $2",login,password);
-//         if(!result.empty()) return result[0][0].as<int>();
-//     }
-//     catch(const std::exception&e){std::cerr<<"Unexpected error.. "<< e.what() <<std::endl; return std::nullopt;}
-//     return std::nullopt;
-// }
 std::vector<Database::TaskData>Database::getUserTasks(int userID,bool onlyUncompleted){
-   
+     std::lock_guard<std::mutex> lock(dbMutex);
     std::vector<TaskData> tasks;
     try {
         auto transaction = createTransaction();
@@ -99,6 +71,7 @@ std::vector<Database::TaskData>Database::getUserTasks(int userID,bool onlyUncomp
 }
                                                                                         //TASKS QUERY MANIPULATION
 bool Database::addTask(const std::string&taskN,int userID){
+      std::lock_guard<std::mutex> lock(dbMutex);
     if(!isConnected()) {std::cout << "DB connection is closed.. \n"; return false;}
     try{
     auto transaction = createTransaction();
@@ -110,6 +83,7 @@ bool Database::addTask(const std::string&taskN,int userID){
 
 }
 bool Database::deleteTask(int id){
+      std::lock_guard<std::mutex> lock(dbMutex);
     if(!isConnected()) {std::cout << "DB connection is closed.. \n"; return false;}
     try{
     auto transaction = createTransaction();
@@ -125,6 +99,7 @@ bool Database::deleteTask(int id){
     }catch(const std::exception&e){ std::cerr<< "Unpredictable error: " << e.what()<< std::endl;return false;}
 }
 bool Database::completeTask(int taskID){
+      std::lock_guard<std::mutex> lock(dbMutex);
     if(!isConnected()) {std::cout << "DB connection is closed.. \n"; return false;}
     try{
     auto transaction = createTransaction();
@@ -140,6 +115,7 @@ bool Database::completeTask(int taskID){
 
 }
 std::optional<int> Database::findUserByTelegramId(const int64_t tgID){
+      std::lock_guard<std::mutex> lock(dbMutex);
     try{
     if(!isConnected()) {std::cout<< "DB connection is closed.. \n"; return std::nullopt;}
     auto transaction = createTransaction();
@@ -150,6 +126,7 @@ std::optional<int> Database::findUserByTelegramId(const int64_t tgID){
     }catch(std::exception&){return std::nullopt;}
 }
 std::optional<int> Database::addTgUser(const std::string& login, const int64_t tgID){
+      std::lock_guard<std::mutex> lock(dbMutex);
     try{
         if(!isConnected()) return std::nullopt;
          auto transaction = createTransaction();
@@ -159,4 +136,18 @@ std::optional<int> Database::addTgUser(const std::string& login, const int64_t t
 
 
     }catch(std::exception&e){return std::nullopt;}
+}
+bool Database::setNotificationsEnabled(const int userID, bool condition){
+    std::lock_guard<std::mutex> lock(dbMutex);
+    try{
+        if(!isConnected()){ return false;  }
+        auto transaction = createTransaction();
+        auto result = transaction.exec_params("UPDATE \"User\" set \"notifications_enabled\" = $1 where userid = $2 RETURNING userid",condition,userID);
+        transaction.commit();
+        if(!result.empty()){
+            return true;
+        }
+        else return false;
+
+    } catch (std::exception&e){std::cerr << "Something went wrong.." << e.what(); return false;}
 }

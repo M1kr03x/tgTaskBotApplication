@@ -3,6 +3,7 @@
 
 telegramBot::telegramBot(const std::string& token, Database& db) : bot(std::make_unique<TgBot::Bot>(token)), database(db), uMng(db){
     setupHandlers();
+    bgThread = std::thread(&telegramBot::backgroundWorker, this);
 }
 int telegramBot::getTgUserId(TgBot::Message::Ptr mes){
     if (mes->chat->type != TgBot::Chat::Type::Private) {
@@ -140,4 +141,15 @@ bot->getEvents().onCommand("delete",[this](TgBot::Message::Ptr message){
     }
 
 });
+}
+void telegramBot::backgroundWorker() {
+    while (bgRunning) {
+        //some Stub
+    }
+}
+telegramBot::~telegramBot() {
+    bgRunning = false;
+    if (bgThread.joinable()) {
+        bgThread.join();
+    }
 }

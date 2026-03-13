@@ -1,11 +1,15 @@
 #pragma once
 #include <tgbot/tgbot.h>
 #include <memory>
+#include <thread>
 #include "database.h"
 #include "userManager.h"
 
 class telegramBot{
     private:
+    std::thread bgThread;
+    std::atomic<bool> bgRunning{true};
+    void backgroundWorker();
     std::unique_ptr<TgBot::Bot> bot;
     Database &database;
     userManager uMng;
@@ -15,4 +19,5 @@ class telegramBot{
     void start();
 
     int getTgUserId(TgBot::Message::Ptr);
+     ~telegramBot();
 };

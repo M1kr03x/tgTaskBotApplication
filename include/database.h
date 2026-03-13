@@ -5,9 +5,10 @@
 #include <vector>
 #include <optional>
 #include <memory>
-
+#include <mutex>
 class Database{
 private:
+std::mutex dbMutex;  
 std::unique_ptr<pqxx::connection> conn;
 pqxx::work createTransaction();
 public:
@@ -36,6 +37,13 @@ bool deleteTask(int);
 //getters
 std::vector<TaskData> getUserTasks(int,bool);
 pqxx::connection& getConnecton();
+//Notifications
+bool setNotificationsEnabled(int, bool);
+bool getNotificationsEnabled(int userId);
 
+bool setTaskNotify(int, bool);
+bool getTaskNotify(int);
 
+//threadNotficationsSender
+void checkDeadlines();
 };
