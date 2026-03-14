@@ -7,6 +7,7 @@
 
 class telegramBot{
     private:
+    std::optional<std::pair<std::string, std::optional<time_t>>> stringWorker(std::string);
     std::thread bgThread;
     std::atomic<bool> bgRunning{true};
     void backgroundWorker();
@@ -17,7 +18,9 @@ class telegramBot{
     public:
     telegramBot(const std::string&,Database&);
     void start();
-
+    std::optional<time_t> parseTime(const std::string&);
+    std::optional<time_t> parseDate(const std::string&);
+    std::optional<time_t> parseDateTime(const std::string&, const std::string&);
     int getTgUserId(TgBot::Message::Ptr);
      ~telegramBot();
 };

@@ -27,9 +27,16 @@ void taskManager::getAllTasks() const {
     for (const auto& task : tasks) {
         std::cout << task.taskID << ". " 
                   << (task.taskStatus == "Completed" ? " [Completed] " : " [Uncompleted] ")
-                  << task.taskName << "\n";
+                  << task.taskName;
+                   if (task.deadline != 0) {
+            char buffer[20];
+            struct tm* timeinfo = localtime(&task.deadline);
+            strftime(buffer, sizeof(buffer), "%d.%m.%Y %H:%M", timeinfo);
+            std::cout << " (до " << buffer << ")";
+        }
+        }
     }
-}
+
 bool taskManager::deleteTask(int id){
      return db.deleteTask(id); 
 

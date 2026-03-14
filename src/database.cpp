@@ -52,7 +52,7 @@ std::vector<Database::TaskData>Database::getUserTasks(int userID,bool onlyUncomp
     try {
         auto transaction = createTransaction();
         
-        std::string query = "SELECT taskID, taskName, taskStatus FROM \"Task\" WHERE userID = $1";
+        std::string query = "SELECT taskID, taskName, taskStatus,deadline,notify FROM \"Task\" WHERE userID = $1";
         if (onlyUncompleted) {
             query += " AND taskStatus = 'uncompleted'";
         }
@@ -63,6 +63,12 @@ std::vector<Database::TaskData>Database::getUserTasks(int userID,bool onlyUncomp
             task.taskStatus = row[2].as<std::string>();
             task.taskID = row[0].as<int>();
             task.taskName = row[1].as<std::string>();
+             if (row[3].is_null()) {
+                task.deadline = 0;
+            } else {
+                task.deadline = row[3].as<time_t>();
+            }
+            task.notifible = row[4].as<bool>();
             tasks.push_back(task);
         } 
         return tasks;
@@ -76,6 +82,18 @@ bool Database::addTask(const std::string&taskN,int userID){
     try{
     auto transaction = createTransaction();
     auto result = transaction.exec_params("INSERT INTO \"Task\"(taskName,taskStatus,userID) VALUES($1,$2,$3) RETURNING taskID",taskN,"Uncompleted",userID);
+    transaction.commit();
+    std::cout<< "Task " << taskN <<" with ID " << result[0][0].as<int>() << " has been succesfuly added\n"; 
+    return true;
+    } catch(std::exception&e){std::cerr<<"Unexpected error.. "<< e.what()<<std::endl; return false;}
+
+}
+bool Database::addTaskWithDeadline(const std::string&taskN,int userID,time_t deadline){
+      std::lock_guard<std::mutex> lock(dbMutex);
+    if(!isConnected()) {std::cout << "DB connection is closed.. \n"; return false;}
+    try{
+    auto transaction = createTransaction();
+    auto result = transaction.exec_params("INSERT INTO \"Task\"(taskName,taskStatus,userID,deadline,notify) VALUES($1,$2,$3,$4,$5) RETURNING taskID",taskN,"Uncompleted",userID,static_cast<long long>(deadline),false);
     transaction.commit();
     std::cout<< "Task " << taskN <<" with ID " << result[0][0].as<int>() << " has been succesfuly added\n"; 
     return true;
@@ -150,4 +168,19 @@ bool Database::setNotificationsEnabled(const int userID, bool condition){
         else return false;
 
     } catch (std::exception&e){std::cerr << "Something went wrong.." << e.what(); return false;}
+}
+bool Database::setTaskNotify(int taskID, bool condition){
+    std::lock_guard<std::mutex> lock(dbMutex);
+     try{
+        if(!isConnected()){ return false;  }
+         if(!isConnected()){ return false;  }
+        auto transaction = createTransaction();
+        auto result = transaction.exec_params("UPDATE \"Task\" set notify = $1 where taskid = $2 RETURNING taskid",condition,taskID);
+        transaction.commit();
+        if(!result.empty()){
+            return true;
+        }
+        else return false;
+
+     }catch (std::exception&e){std::cerr << "Something went wrong.." << e.what(); return false;}
 }

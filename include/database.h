@@ -6,6 +6,7 @@
 #include <optional>
 #include <memory>
 #include <mutex>
+#include<chrono>
 class Database{
 private:
 std::mutex dbMutex;  
@@ -26,6 +27,7 @@ bool userExists(const std::string&);
 bool deleteUser(const std::string&);
 //task query
 bool addTask(const std::string&,int);
+bool addTaskWithDeadline(const std::string&, int, time_t);
 bool completeTask(int);
 bool deleteTask(int);
 //structs
@@ -33,6 +35,8 @@ bool deleteTask(int);
         int taskID;
         std::string taskName;
         std::string taskStatus;
+        time_t deadline;
+        bool notifible;
     };
 //getters
 std::vector<TaskData> getUserTasks(int,bool);
