@@ -49,5 +49,6 @@ bool setTaskNotify(int, bool);
 bool getTaskNotify(int);
 
 //threadNotficationsSender
-void checkDeadlines();
+void checkDeadlines(std::function<void(int64_t, const std::string&,int)> sendCallback);
+bool setPingTime(int,int);
 };

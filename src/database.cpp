@@ -1,6 +1,6 @@
 #include "database.h"
 #include <iostream>
-
+#include <functional>
 pqxx::work Database::createTransaction(){
     return pqxx::work(*conn);
 }
@@ -173,7 +173,6 @@ bool Database::setTaskNotify(int taskID, bool condition){
     std::lock_guard<std::mutex> lock(dbMutex);
      try{
         if(!isConnected()){ return false;  }
-         if(!isConnected()){ return false;  }
         auto transaction = createTransaction();
         auto result = transaction.exec_params("UPDATE \"Task\" set notify = $1 where taskid = $2 RETURNING taskid",condition,taskID);
         transaction.commit();
@@ -183,4 +182,58 @@ bool Database::setTaskNotify(int taskID, bool condition){
         else return false;
 
      }catch (std::exception&e){std::cerr << "Something went wrong.." << e.what(); return false;}
+}
+
+
+
+void Database::checkDeadlines(std::function<void(int64_t, const std::string&, int)> sendCallback) {
+    std::lock_guard<std::mutex> lock(dbMutex);
+    try {
+        auto W = createTransaction();
+
+        std::string userSql = 
+            "SELECT userid, telegramid, pingtime FROM \"User\" "
+            "WHERE notifications_enabled = TRUE "
+            "AND (extract(epoch from now())::bigint - lastping) >= pingtime";
+
+        pqxx::result users = W.exec(userSql);
+
+        for (auto const& userRow : users) {
+            int userId = userRow[0].as<int>();
+            int64_t tgId = userRow[1].as<int64_t>();
+            int pingTime = userRow[2].as<int>();
+
+            std::string taskSql = 
+                "SELECT taskname FROM \"Task\" "
+                "WHERE userid = " + W.quote(userId) + " "
+                "AND taskstatus != 'Completed' "
+                "AND notify = TRUE";
+
+            pqxx::result tasks = W.exec(taskSql);
+
+            if (!tasks.empty()) {
+                std::string message = "Notification! Your upcoming tasks:\n";
+                for (auto const& taskRow : tasks) {
+                    message += "- " + taskRow[0].as<std::string>() + "\n";
+                }
+                
+                sendCallback(tgId, message, pingTime);
+
+                W.exec0("UPDATE \"User\" SET lastping = extract(epoch from now())::bigint WHERE userid = " + W.quote(userId));
+            }
+        }
+        W.commit();
+    } catch (const std::exception& e) {
+        std::cerr << "DB Error: " << e.what() << std::endl;
+    }
+}
+    bool Database::setPingTime(int seconds, int tgid){
+    try{
+    if(!isConnected()) return false;
+    auto transaction = createTransaction();
+    auto result = transaction.exec_params("UPDATE \"User\" SET pingtime = $1 WHERE telegramid = $2",seconds,tgid);
+    transaction.commit();
+    return result.affected_rows() > 0;
+    }catch(std::exception &e) {std::cerr << e.what(); return false ;}
+
 }

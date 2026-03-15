@@ -1,10 +1,24 @@
 #include "bot.h"
 #include <iostream>
 #include <regex>
+#include <ctime>
+#include <optional>
+#include <string>
+#include <cstdio>
+
+tm get_localtime(const time_t* timer) {
+    tm result;
+#ifdef _WIN32
+    localtime_s(&result, timer);
+#else
+    localtime_r(timer, &result);
+#endif
+    return result;
+}
 
 telegramBot::telegramBot(const std::string& token, Database& db) : bot(std::make_unique<TgBot::Bot>(token)), database(db), uMng(db){
     setupHandlers();
-    //bgThread = std::thread(&telegramBot::backgroundWorker, this);
+    bgThread = std::thread(&telegramBot::backgroundWorker, this);
 }
 int telegramBot::getTgUserId(TgBot::Message::Ptr mes){
     if (mes->chat->type != TgBot::Chat::Type::Private) {
@@ -39,8 +53,9 @@ void telegramBot::setupHandlers(){
             "/start  - Welcome message\n"
             "/help - Show this help\n"
             "/add <task> <date time (optional)> - Add new task\n"
-            "/setTaskNotify <task id> <true|false> - set notify status for concrete tasks\n"
-            "/setUserNotify <true|false> set notify mode for all tasks\n"
+            "/setTaskNotify <task id> <on|off> - set notify status for concrete tasks\n"
+            "/setNotifyTime <seconds> - set ping time between notifiers\n"
+            "/setUserNotify <on|off> - set notify mode for all tasks\n"
             "/list - Show all tasks\n"
             "/complete <id> - Mark task as completed\n"
             "/delete <id> - Delete task";
@@ -102,16 +117,18 @@ void telegramBot::setupHandlers(){
         
         for (const auto& task : tasks) {
             response += std::to_string(local++) + ". ";
+            response += "Task status - ";
             response += (task.taskStatus == "Completed" ? "[ completed ]   " : "[ uncompleted ]   ");
-            response += task.taskName;
+            response +="\nTask name: "+ task.taskName;
             if (task.deadline != 0) {
-                char buffer[30];
+                char buffer[60];
                 struct tm* timeinfo = localtime(&task.deadline);
-                strftime(buffer, sizeof(buffer), " (до %d.%m.%Y %H:%M)", timeinfo);
+                strftime(buffer, sizeof(buffer), " | Выполнить до %d.%m.%Y %H:%M)", timeinfo);
                 response += buffer;
             }
-            response += (task.notifible == true ? " [ Notify enabled ]" : " [ Notify disabled ]");
-            response += "\n";
+            response+= "\nNotifieble - ";
+            response += (task.notifible == true ? " [ On ] \n" : " [ Off ]  \n");
+            response += "\n\n";
         }
         
         bot->getApi().sendMessage(message->chat->id, response);
@@ -153,6 +170,43 @@ bot->getEvents().onCommand("complete",[this](TgBot::Message::Ptr message){
     }
 
 });
+bot->getEvents().onCommand("setnotifytime", [this](TgBot::Message::Ptr message) {
+    try {
+        int64_t tgUserId = message->from->id; 
+        std::string text = message->text;
+
+        size_t spacePos = text.find(' ');
+        if (spacePos == std::string::npos || spacePos + 1 >= text.size()) {
+            bot->getApi().sendMessage(message->chat->id, "Usage: /setNotifyTime <seconds>");
+            return;
+        }
+
+        std::string numStr = text.substr(spacePos + 1);
+        
+        int seconds;
+        try {
+            seconds = std::stoi(numStr);
+        } catch (...) {
+            bot->getApi().sendMessage(message->chat->id, "Error: Please enter a valid number.");
+            return;
+        }
+
+        if (seconds < 0) {
+            bot->getApi().sendMessage(message->chat->id, "Error: Seconds must be greater than 0.");
+            return;
+        }
+
+        if (database.setPingTime(seconds, tgUserId)) {
+            bot->getApi().sendMessage(message->chat->id, "Ping time successfully changed.");
+        } else {
+            bot->getApi().sendMessage(message->chat->id, "Error.");
+        }
+
+    } catch (std::exception& e) {
+        std::cerr << e.what() << std::endl;
+        bot->getApi().sendMessage(message->chat->id, "⚠️ Internal error occurred.");
+    }
+});
 bot->getEvents().onCommand("delete",[this](TgBot::Message::Ptr message){
  try {
         int userid = getTgUserId(message);
@@ -185,13 +239,13 @@ bot->getEvents().onCommand("delete",[this](TgBot::Message::Ptr message){
     }
 
 });
-bot->getEvents().onCommand("setTaskNotify", [this](TgBot::Message::Ptr message) {
+bot->getEvents().onCommand("settasknotify", [this](TgBot::Message::Ptr message) {
     try {
         int userid = getTgUserId(message);
         std::string text = message->text;
         if (text.length() < 15) { 
             bot->getApi().sendMessage(message->chat->id, 
-                "Usage: /setTaskNotify <task_number> <on/off>");
+                "Usage: /settasknotify <task_number> <on/off>");
             return;
         }
         std::string args = text.substr(15);
@@ -199,7 +253,7 @@ bot->getEvents().onCommand("setTaskNotify", [this](TgBot::Message::Ptr message) 
         
         if (spacePos == std::string::npos) {
             bot->getApi().sendMessage(message->chat->id, 
-                "Usage: /setTaskNotify <task_number> <on/off>");
+                "Usage: /settasknotify <task_number> <on/off>");
             return;
         }
         std::string numStr = args.substr(0, spacePos);
@@ -227,7 +281,7 @@ bot->getEvents().onCommand("setTaskNotify", [this](TgBot::Message::Ptr message) 
         std::cerr << "Error: " << e.what() << std::endl;
     }
 });
-bot->getEvents().onCommand("setUserNotify", [this](TgBot::Message::Ptr message) {
+bot->getEvents().onCommand("setusernotify", [this](TgBot::Message::Ptr message) {
     try {
         int userid = getTgUserId(message);
         std::string text = message->text;
@@ -257,7 +311,12 @@ bot->getEvents().onCommand("setUserNotify", [this](TgBot::Message::Ptr message) 
 }
 void telegramBot::backgroundWorker() {
     while (bgRunning) {
-        //some Stub
+        database.checkDeadlines([this](int64_t chat_id, const std::string& text, int sec) {
+            try {
+                this->bot->getApi().sendMessage(chat_id, text); 
+            } catch (...) {}
+        });
+        std::this_thread::sleep_for(std::chrono::seconds(10));
     }
 }
 telegramBot::~telegramBot() {
@@ -267,97 +326,103 @@ telegramBot::~telegramBot() {
     }
 }
 std::optional<std::pair<std::string, std::optional<time_t>>> telegramBot::stringWorker(std::string userInput) {
-    
     std::vector<std::string> words;
-    std::string symbol(" ");
-    size_t start = 0;
-    auto endIterator = userInput.find_first_of(symbol);
-    
-    while (endIterator != std::string::npos) {
-        if (endIterator > start) 
-            words.push_back(userInput.substr(start, endIterator - start));
-        start = endIterator + 1;
-        endIterator = userInput.find_first_of(symbol, start);
-    }
-    if (start < userInput.length()) {
-        words.push_back(userInput.substr(start));
-    }
-    
+    std::istringstream iss(userInput);
+    std::string s;
+    while (iss >> s) words.push_back(s);
+
     if (words.empty()) return std::nullopt;
-    
-    std::regex timeRegex(R"(^([0-9]|1[0-9]|2[0-3]):[0-5][0-9]$)");
-    std::regex dateRegex(R"(^(0[1-9]|[12][0-9]|3[01])\.(0[1-9]|1[012])\.(19|20)\d\d$)");
-    
-    size_t wordCount = words.size();
-    std::string taskName;
+
+    std::regex timeRegex(R"(^([0-9]|0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$)");
+    std::regex dateRegex(R"(^(0[1-9]|[12][0-9]|3[01])\.(0[1-9]|1[012])\.(19|[2-9][0-9])\d\d$)");
+
+    int endIndex = static_cast<int>(words.size()) - 1;
     std::optional<time_t> deadline = std::nullopt;
-    
-    size_t nameEndIndex = wordCount; 
-    
-    if (wordCount >= 2) {
-        bool lastIsTime = std::regex_match(words[wordCount - 1], timeRegex); //T    //F
-        bool lastIsDate = std::regex_match(words[wordCount - 1], dateRegex); //F    //T
-        bool prevIsDate = (wordCount >= 3) and std::regex_match(words[wordCount - 2], dateRegex);
-        
-        if (wordCount >= 3 and prevIsDate and lastIsTime) {
-            nameEndIndex = wordCount - 2;
-            deadline = parseDateTime(words[wordCount - 2], words[wordCount - 1]);
+    int taskLastWordIndex = endIndex; 
+
+    bool isTime = std::regex_match(words[endIndex], timeRegex);
+
+    if (isTime and endIndex >=1) {
+        if (std::regex_match(words[endIndex - 1], dateRegex)) {
+            deadline = parseDateTime(words[endIndex - 1], words[endIndex]);
+            taskLastWordIndex = endIndex - 2;
+        } else {
+            deadline = parseTime(words[endIndex]);
+            taskLastWordIndex = endIndex - 1;
         }
-        else if (lastIsDate || lastIsTime) {
-            nameEndIndex = wordCount - 1;
-            deadline = parseDate(words.back());
-        }
-        else if (lastIsTime) {
-            nameEndIndex = wordCount - 1;
-            deadline = parseTime(words.back());
-        }
+    } 
+    else if (std::regex_match(words[endIndex], dateRegex)) {
+        deadline = parseDate(words[endIndex]);
+        taskLastWordIndex = endIndex - 1;
     }
-    for (size_t i = 0; i < nameEndIndex; ++i) {
-        if (i > 0) taskName += " ";
+
+    std::string taskName;
+    for (int i = 0; i <= taskLastWordIndex; ++i) {
         taskName += words[i];
+        if (i < taskLastWordIndex) taskName += " ";
     }
+
+    if (taskName.empty()) return std::nullopt;
     
     return std::make_pair(taskName, deadline);
+}
+
+
+
+std::optional<time_t> telegramBot::parseDate(const std::string& str) {
+    int d, m, y;
+    if (sscanf(str.c_str(), "%d.%d.%d", &d, &m, &y) != 3) return std::nullopt;
+
+    if (m < 1 || m > 12 || d < 1 || d > 31 || y < 1900) return std::nullopt;
+
+    tm t = {};
+    t.tm_mday = d;
+    t.tm_mon = m - 1;
+    t.tm_year = y - 1900;
+    t.tm_isdst = -1; 
+
+    time_t res = mktime(&t);
+    return (res == -1) ? std::nullopt : std::make_optional(res);
+}
+
+std::optional<time_t> telegramBot::parseDateTime(const std::string& dateStr, const std::string& timeStr) {
+    auto date_opt = parseDate(dateStr);
+    if (!date_opt) return std::nullopt;
+
+    int hh, mm;
+    if (sscanf(timeStr.c_str(), "%d:%d", &hh, &mm) != 2) return std::nullopt;
+    if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return std::nullopt;
+
+    tm t = get_localtime(&date_opt.value());
+    t.tm_hour = hh;
+    t.tm_min = mm;
+    t.tm_sec = 0;
+    t.tm_isdst = -1; 
+
+    time_t res = mktime(&t);
+    return (res == -1) ? std::nullopt : std::make_optional(res);
 }
 std::optional<time_t> telegramBot::parseTime(const std::string& str) {
     int hour, minute;
     if (sscanf(str.c_str(), "%d:%d", &hour, &minute) != 2) 
         return std::nullopt;
+
     if (hour < 0 || hour > 23 || minute < 0 || minute > 59)
         return std::nullopt;
     
     time_t now = time(nullptr);
-    tm* tm_now = localtime(&now);
-    tm_now->tm_hour = hour;
-    tm_now->tm_min = minute;
-    tm_now->tm_sec = 0;
-    return mktime(tm_now);
-}
-std::optional<time_t> telegramBot::parseDate(const std::string& str) {
-    int day, month, year;
-    if (sscanf(str.c_str(), "%d.%d.%d", &day, &month, &year) != 3)
-        return std::nullopt;
-    
-    tm tm_date = {};
-    tm_date.tm_mday = day;
-    tm_date.tm_mon = month - 1;
-    tm_date.tm_year = year - 1900;
-    tm_date.tm_hour = 0;
-    tm_date.tm_min = 0;
-    tm_date.tm_sec = 0;
-    return mktime(&tm_date);
-}
-std::optional<time_t> telegramBot::parseDateTime(const std::string& dateStr, const std::string& timeStr) {
-    auto date = parseDate(dateStr);
-    if (!date) return std::nullopt;
-    
-    int hour, minute;
-    if (sscanf(timeStr.c_str(), "%d:%d", &hour, &minute) != 2)
-        return std::nullopt;
-    
-    tm* tm_time = localtime(&date.value());
-    tm_time->tm_hour = hour;
-    tm_time->tm_min = minute;
-    tm_time->tm_sec = 0;
-    return mktime(tm_time);
+    tm t;
+#ifdef _WIN32
+    localtime_s(&t, &now);
+#else
+    localtime_r(&now, &t);
+#endif
+
+    t.tm_hour = hour;
+    t.tm_min = minute;
+    t.tm_sec = 0;
+    t.tm_isdst = -1; 
+
+    time_t res = mktime(&t);
+    return (res == -1) ? std::nullopt : std::make_optional(res);
 }

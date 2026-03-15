@@ -22,5 +22,6 @@ class telegramBot{
     std::optional<time_t> parseDate(const std::string&);
     std::optional<time_t> parseDateTime(const std::string&, const std::string&);
     int getTgUserId(TgBot::Message::Ptr);
+    void runNotificationWorker();
      ~telegramBot();
 };
