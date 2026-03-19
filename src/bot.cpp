@@ -75,6 +75,7 @@ void telegramBot::setupHandlers(){
         }
         auto[taskName, deadlineDate] = res.value();
         if (deadlineDate.has_value()) {
+            
     std::cout << "DEBUG: deadline = " << deadlineDate.value() << std::endl;
 } else {
     std::cout << "DEBUG: no deadline" << std::endl;
@@ -316,7 +317,7 @@ void telegramBot::backgroundWorker() {
                 this->bot->getApi().sendMessage(chat_id, text); 
             } catch (...) {}
         });
-        std::this_thread::sleep_for(std::chrono::seconds(10));
+        std::this_thread::sleep_for(std::chrono::seconds(60));
     }
 }
 telegramBot::~telegramBot() {
